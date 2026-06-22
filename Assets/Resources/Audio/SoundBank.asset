@@ -1,0 +1,87 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 83185d9ba35e0e844b5530281e4a937f, type: 3}
+  m_Name: SoundBank
+  m_EditorClassIdentifier: Assembly-CSharp::DgProto.SoundBank
+  entries:
+  - id: 0
+    clips:
+    - {fileID: 8300000, guid: 60da16134055be047aad9d01314a6a6d, type: 3}
+    volume: 1
+    pitchJitter: 0
+    maxDuration: 0.7
+  - id: 1
+    clips:
+    - {fileID: 8300000, guid: 44f3045b369844545a5e83319334b9e1, type: 3}
+    volume: 1
+    pitchJitter: 0
+    maxDuration: 0
+  - id: 2
+    clips:
+    - {fileID: 8300000, guid: 7375c1b19982626409e40e18bc18afca, type: 3}
+    volume: 1
+    pitchJitter: 0
+    maxDuration: 0
+  - id: 3
+    clips:
+    - {fileID: 8300000, guid: ce1eaf35702c5914e88df8a814c355ac, type: 3}
+    volume: 1
+    pitchJitter: 0.05
+    maxDuration: 0
+  - id: 4
+    clips:
+    - {fileID: 8300000, guid: 534c9f86fde459240a7ec5122d42b509, type: 3}
+    volume: 0.55
+    pitchJitter: 0.12
+    maxDuration: 0
+  - id: 5
+    clips:
+    - {fileID: 8300000, guid: 01139c1da255345408b494fd02c84f4e, type: 3}
+    volume: 0.9
+    pitchJitter: 0.04
+    maxDuration: 0
+  - id: 6
+    clips:
+    - {fileID: 8300000, guid: dbddba3eaca730d469499be28722ae54, type: 3}
+    volume: 0.85
+    pitchJitter: 0.05
+    maxDuration: 0
+  - id: 7
+    clips:
+    - {fileID: 8300000, guid: 7cedcdbdca769584ba891ab7b45a2f6e, type: 3}
+    volume: 1
+    pitchJitter: 0
+    maxDuration: 0
+  - id: 8
+    clips:
+    - {fileID: 8300000, guid: 34b3b3b7cf503634d9e22a900619a00b, type: 3}
+    volume: 1
+    pitchJitter: 0
+    maxDuration: 0
+  - id: 9
+    clips:
+    - {fileID: 8300000, guid: fac87a204b7c73f47b95cd1fd812e493, type: 3}
+    volume: 1
+    pitchJitter: 0
+    maxDuration: 0
+  - id: 10
+    clips:
+    - {fileID: 8300000, guid: 2df1c9b8718d3fd4f89a84da91a05985, type: 3}
+    volume: 0.85
+    pitchJitter: 0.05
+    maxDuration: 0
+  - id: 11
+    clips:
+    - {fileID: 8300000, guid: 6c899bb389f36b247a839f41a21b9b4b, type: 3}
+    volume: 1
+    pitchJitter: 0.05
+    maxDuration: 0
