@@ -104,6 +104,39 @@ rather than guessing or barrelling ahead:
 
 ---
 
+## Milestone 3 — synchronized countdown & gated start
+
+- **Synchronize the countdown with an authoritative timestamp, not local timers.**
+  The host sets `matchStartTime = NetworkManager.ServerTime.Time + N` into a
+  `NetworkVariable<double>` (server-write, everyone-read); every client renders
+  `Mathf.CeilToInt(matchStartTime - NetworkManager.ServerTime.Time)`. Because all
+  clients read the same synced clock, their 3→2→1 displays agree within a frame
+  and they unlock at the same real-world instant. Three independent
+  `WaitForSeconds(1)` loops would drift and start players at different moments —
+  the classic bug.
+- **Use `NetworkManager.ServerTime.Time` as the shared clock**, never `Time.time`
+  (unsynced per device). `ServerTime` is valid on clients once connected.
+- **Gate input by spawning controllers DISABLED, then enabling at "GO".** Don't
+  enable the owner's controller on spawn (`NetworkPlayerSetup` leaves it off);
+  the countdown owner enables only **this client's own** player
+  (`NetworkManager.LocalClient.PlayerObject`) when the timer hits zero. Remote
+  proxies stay disabled regardless. This guarantees nobody moves or attacks
+  before GO without touching the controller's internals.
+- **Use a scene-placed NetworkObject for match-wide state.** `MatchController`
+  sits in the gameplay scene and auto-spawns on the networked load (on host + all
+  clients) — simpler than instantiating and registering a prefab. A sentinel
+  value (`matchStartTime == 0`) cleanly means "countdown not begun yet".
+- **Drive the countdown start after players exist.** `MatchSpawner` spawns the
+  players first, then calls `MatchController.BeginCountdown()` (server-only), so
+  the clock never starts before there's someone to gate.
+- **Testing a short countdown through MCP/automation is latency-blind.** Tool
+  round-trips (+ scene load) easily exceed a 3 s countdown, so polling always
+  arrives after "GO". To actually observe/screenshot a mid-countdown frame,
+  temporarily bump the duration (e.g. 60 s), capture, then revert. The
+  disabled→enabled controller transition is the reliable proof the gate fired.
+
+---
+
 ## UGS / cloud
 
 - **Windows `EPERM: operation not permitted, rename` in `Library/PackageCache`** on
