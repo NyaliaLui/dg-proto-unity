@@ -87,6 +87,17 @@ sidescroller built in Unity. This file is auto-loaded each session — read it f
 - Architectural DRY: a shared `EnemyBase` (FaceDir / stun / death / animator helpers for
   the 3 enemy scripts + Paladin) and a shared procedural-UI builder for
   `NotificationWindow` + `GameOverScreen` (currently near-duplicate).
+
+## Multiplayer (networking) work
+
+Converting this single-player game to 2-player online co-op (NGO + UGS Lobby/Relay).
+Before doing further multiplayer work — or repeating the conversion elsewhere — read
+[`Docs/unity-multiplayer-conversion-gotchas.md`](Docs/unity-multiplayer-conversion-gotchas.md)
+for the hard-won gotchas. **Two inputs are human-only — prompt the user (don't assume):**
+(1) the **UGS cloud project link** (sign-in + create/link project + enable Relay/Lobby/Auth;
+the agent can't), and (2) the **match design decisions** (mode / authority / match-end /
+disconnect) that drive the architecture.
+
 ## Blender / Mixamo animation work
 
 When merging Mixamo animations onto a character in Blender (via the Blender MCP
