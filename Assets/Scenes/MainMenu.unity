@@ -417,9 +417,9 @@ GameObject:
   - component: {fileID: 862214812}
   - component: {fileID: 862214811}
   - component: {fileID: 862214814}
-  - component: {fileID: 862214817}
   - component: {fileID: 862214816}
   - component: {fileID: 862214815}
+  - component: {fileID: 862214817}
   m_Layer: 0
   m_Name: NetworkManager
   m_TagString: Untagged
@@ -568,10 +568,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 862214810}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5df1fe6282d9fd44f8ec17b08c84ae75, type: 3}
+  m_Script: {fileID: 11500000, guid: 4cb5038ae3f624841a804677f46f114e, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DgProto.LocalMatchmaker
-  connectTimeout: 1.5
+  m_EditorClassIdentifier: Assembly-CSharp::DgProto.UgsMatchmaker
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
