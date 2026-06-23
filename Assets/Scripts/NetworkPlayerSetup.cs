@@ -35,7 +35,11 @@ namespace DgProto
         {
             bool isLocalPlayer = IsOwner;
 
-            if (controller != null) controller.enabled = isLocalPlayer;
+            // Controllers spawn DISABLED for everyone. The remote proxy stays
+            // disabled (it's driven by the replicated transform); the local
+            // player's controller is enabled by MatchController when the
+            // pre-match countdown reaches zero, so nobody can act before "GO".
+            if (controller != null) controller.enabled = false;
 
             if (body != null)
             {

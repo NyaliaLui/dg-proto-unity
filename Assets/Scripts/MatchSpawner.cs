@@ -69,6 +69,12 @@ namespace DgProto
                 go.GetComponent<NetworkObject>().SpawnAsPlayerObject(clientId);
                 i++;
             }
+
+            // Players are in (controllers disabled). Kick off the synchronized
+            // pre-match countdown, which unlocks input on "GO".
+            var match = Object.FindAnyObjectByType<MatchController>();
+            if (match != null) match.BeginCountdown();
+            else Debug.LogWarning("[MatchSpawner] No MatchController in scene — countdown won't start and input stays locked.");
         }
     }
 }
