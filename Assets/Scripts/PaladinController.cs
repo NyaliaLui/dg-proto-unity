@@ -39,7 +39,6 @@ namespace DgProto
         [SerializeField] private int specialAttackDamage = 3;
         [SerializeField] private float meleeRange = 2f;
         [SerializeField] private float meleeHeight = 2f;
-        [SerializeField] private LayerMask meleeMask = ~0;
 
         [Range(0f, 1f)]
         [Tooltip("Normalized time into the attack animation at which the hit lands (synced to the swing's contact frame).")]
@@ -58,11 +57,10 @@ namespace DgProto
         [Tooltip("Seconds after an attack animation ends during which a press chains to the next combo step. Miss it and the combo restarts from step 1.")]
         [SerializeField] private float comboWindowDuration = 0.2f;
 
-        // Reusable buffer for the melee overlap query.
-        readonly Collider[] _meleeHits = new Collider[16];
-        // Dedupe set so a target with multiple colliders is hit once per swing.
-        readonly System.Collections.Generic.HashSet<IDamageable> _hitThisSwing =
-            new System.Collections.Generic.HashSet<IDamageable>();
+        // Server-authoritative melee resolver on the same networked object.
+        // PaladinController computes when/where a swing connects; PlayerMelee
+        // applies the damage on the host so enemy HP stays consistent.
+        PlayerMelee _melee;
 
         // Combo state.
         //   _comboType: which combo is active (Normal / Special / None)
@@ -121,6 +119,7 @@ namespace DgProto
             _rb = GetComponent<Rigidbody>();
             _animator = GetComponent<Animator>();
             _health = GetComponent<Health>();
+            _melee = GetComponent<PlayerMelee>();
             if (_health != null)
             {
                 _health.Died += OnPlayerDied;
@@ -162,14 +161,12 @@ namespace DgProto
 
         private void OnPlayerDied(Health h)
         {
+            // This Paladin is down: stop input/movement and let it lie. In co-op
+            // a single death does NOT end the match or show the game-over screen —
+            // the teammate plays on. Detecting "both Paladins down" → match end +
+            // GameOverScreen is owned by the match lifecycle (Milestone 5).
             _dead = true;
             if (_rb != null) _rb.linearVelocity = Vector3.zero;
-            AudioManager.Instance.Play(SfxId.GameOver);
-            GameOverScreen.Show(
-                "You died! Show support for work like this by following the comic book on social media.",
-                "Facebook",
-                "https://www.facebook.com/profile.php?id=61572357196698",
-                "Restart");
         }
 
         private void Update()
@@ -378,9 +375,11 @@ namespace DgProto
         }
 
         /// <summary>
-        /// OverlapBox in front of the Paladin and apply <paramref name="amount"/>
-        /// damage to every IDamageable found (enemies, the rock, …). Self-colliders
-        /// are filtered out, and each IDamageable is hit only once per swing.
+        /// Computes the swing box in front of the Paladin and asks
+        /// <see cref="PlayerMelee"/> to resolve it on the host. The overlap test
+        /// and damage application happen server-side so enemy HP is authoritative;
+        /// special (E) swings also carry a stun. Only the owning client reaches
+        /// this (its controller is the only one enabled).
         /// </summary>
         private void DealMeleeDamage(int amount)
         {
@@ -390,28 +389,8 @@ namespace DgProto
                            + facingDir * (meleeRange * 0.5f);
             Vector3 halfExtents = new Vector3(meleeRange * 0.5f, meleeHeight * 0.5f, 1f);
 
-            // Special (E) attacks also briefly stun what they hit.
-            bool isSpecial = _isSpecialSwing;
-
-            int n = Physics.OverlapBoxNonAlloc(center, halfExtents, _meleeHits, Quaternion.identity, meleeMask, QueryTriggerInteraction.Collide);
-            _hitThisSwing.Clear();
-            for (int i = 0; i < n; i++)
-            {
-                var col = _meleeHits[i];
-                if (col == null) continue;
-                if (col.transform == transform || col.transform.IsChildOf(transform)) continue;
-
-                var dmg = col.GetComponentInParent<IDamageable>();
-                if (dmg == null || _hitThisSwing.Contains(dmg)) continue;
-                _hitThisSwing.Add(dmg);
-                dmg.TakeDamage(amount);
-
-                if (isSpecial)
-                {
-                    var stunnable = col.GetComponentInParent<IStunnable>();
-                    if (stunnable != null) stunnable.ApplyStun(specialStunDuration);
-                }
-            }
+            float stunDuration = _isSpecialSwing ? specialStunDuration : 0f;
+            if (_melee != null) _melee.RequestHit(center, halfExtents, amount, stunDuration);
         }
 
         /// <summary>

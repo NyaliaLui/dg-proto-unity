@@ -1887,6 +1887,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d96a35fafad490943bc33473c7e744c6, type: 3}
       insertIndex: -1
       addedObject: {fileID: 8099066657698411679}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d96a35fafad490943bc33473c7e744c6, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7055091168961106651}
   m_SourcePrefab: {fileID: 100100000, guid: d96a35fafad490943bc33473c7e744c6, type: 3}
 --- !u!1 &3148476996368550326 stripped
 GameObject:
@@ -1983,9 +1986,6 @@ MonoBehaviour:
   specialAttackDamage: 3
   meleeRange: 2
   meleeHeight: 2
-  meleeMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
   hitNormalizedTime: 0.45
   specialStunDuration: 0.3
   comboWindowDuration: 0.2
@@ -2007,8 +2007,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 94140a27cf1011846af360dda8b7530b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DgProto.Health
+  ShowTopMostFoldoutHeaderGroup: 1
   maxHP: 20
-  currentHP: -1
 --- !u!114 &176669323414303442
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2156,3 +2156,19 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   controller: {fileID: 0}
   body: {fileID: 0}
+--- !u!114 &7055091168961106651
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3148476996368550326}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c61d88f16378cb46932f9c451b7b202, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DgProto.PlayerMelee
+  ShowTopMostFoldoutHeaderGroup: 1
+  meleeMask:
+    serializedVersion: 2
+    m_Bits: 4294967295

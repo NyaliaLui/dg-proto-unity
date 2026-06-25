@@ -25,15 +25,22 @@ namespace DgProto
         [SerializeField] private PaladinController controller;
         [SerializeField] private Rigidbody body;
 
+        private Health _health;
+
         private void Awake()
         {
             if (controller == null) controller = GetComponent<PaladinController>();
             if (body == null) body = GetComponent<Rigidbody>();
+            _health = GetComponent<Health>();
         }
 
         public override void OnNetworkSpawn()
         {
             bool isLocalPlayer = IsOwner;
+
+            // Register with the player registry so host-driven enemy AI can target
+            // this Paladin (nearest living player).
+            PlayerRegistry.Register(_health);
 
             // Controllers spawn DISABLED for everyone. The remote proxy stays
             // disabled (it's driven by the replicated transform); the local
@@ -55,7 +62,17 @@ namespace DgProto
             {
                 var cam = Object.FindAnyObjectByType<SidescrollerCameraFollow>();
                 if (cam != null) cam.SetTarget(transform);
+
+                // Point the HUD health bar at MY Paladin (the bar shows the local
+                // player's health; a teammate bar is a later-milestone polish item).
+                var bar = Object.FindAnyObjectByType<HealthBarUI>();
+                if (bar != null && _health != null) bar.SetTarget(_health);
             }
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            PlayerRegistry.Unregister(_health);
         }
     }
 }

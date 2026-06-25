@@ -21,6 +21,22 @@ namespace DgProto
             }
         }
 
+        /// <summary>
+        /// Rebinds the bar to a new Health source. The networked player Paladin is
+        /// spawned at runtime, so the local player's <see cref="NetworkPlayerSetup"/>
+        /// calls this once it knows which Paladin is "mine".
+        /// </summary>
+        public void SetTarget(Health newTarget)
+        {
+            if (target != null) target.Changed -= OnHealthChanged;
+            target = newTarget;
+            if (target != null)
+            {
+                target.Changed += OnHealthChanged;
+                Refresh();
+            }
+        }
+
         private void OnDestroy()
         {
             if (target != null) target.Changed -= OnHealthChanged;

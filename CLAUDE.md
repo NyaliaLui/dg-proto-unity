@@ -91,6 +91,13 @@ sidescroller built in Unity. This file is auto-loaded each session — read it f
 ## Multiplayer (networking) work
 
 Converting this single-player game to 2-player online co-op (NGO + UGS Lobby/Relay).
+Progress: **M1** Netcode foundation + networked Paladin · **M2** Find Match menu + UGS
+Lobby/Relay matchmaking + networked load · **M3** synchronized 3-2-1 countdown + gated
+start · **M4** host-authoritative world (server-authoritative `Health` & `ScoreTracker`
+via `NetworkVariable`; networked `Enemy.prefab` + host-only `EnemySpawner`/AI; server-side
+melee via `PlayerMelee` ServerRpc; nearest-living-player targeting via `PlayerRegistry`;
+enemies gated on `MatchController.HasStarted`). Next: **M5** match end (both Paladins down)
++ restart · **M6** disconnect grace + polish.
 Before doing further multiplayer work — or repeating the conversion elsewhere — read
 [`Docs/unity-multiplayer-conversion-gotchas.md`](Docs/unity-multiplayer-conversion-gotchas.md)
 for the hard-won gotchas. **Two inputs are human-only — prompt the user (don't assume):**

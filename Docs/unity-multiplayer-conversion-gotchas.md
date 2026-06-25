@@ -137,6 +137,79 @@ rather than guessing or barrelling ahead:
 
 ---
 
+## Milestone 4 — host-authoritative world (enemies, health, score, melee)
+
+- **Lazy-create singletons can't become `NetworkBehaviour`s.** `ScoreTracker`
+  used to `AddComponent` itself onto a hidden GameObject on first access — but a
+  `NetworkVariable` only works on a spawned `NetworkObject`. Convert such
+  singletons to a **scene-placed `NetworkObject`** (auto-spawns on the networked
+  load, like `MatchController`) and make `Instance` *find-only*. Give numeric
+  state a sensible **constructor default** (`new NetworkVariable<int>(1, …)` for
+  level) so the HUD reads a sane value before the spawn.
+- **Initialise server-authoritative state in `OnNetworkSpawn`, not `Awake`.**
+  `Health` seeds `currentHP = maxHP` only `if (IsServer)`, inside
+  `OnNetworkSpawn`. Writing a `NetworkVariable` before spawn throws.
+- **`OnValueChanged` does NOT fire for the initial synchronized value** on a
+  freshly-spawned object. Fire your `Changed`-style event **manually once** in
+  `OnNetworkSpawn` or the HUD/score miss their first update.
+- **Guard "is dead" against the pre-spawn default.** `NetworkVariable<int>`
+  starts at `0`, which a naive `IsDead => hp <= 0` reads as *dead before spawn*.
+  Gate it on a `_spawned` flag set in `OnNetworkSpawn`.
+- **Keep server authority out of scattered `IsServer` checks — gate by *where
+  the script lives*.** The three enemy AI behaviours are **not on the prefab**;
+  the host `AddComponent`s one *after* `NetworkObject.Spawn()`. So the AI only
+  ever exists on the host, drives movement/animation there, and clients get pure
+  replication. No per-method `IsServer` guards needed inside the AI.
+- **Enemy prefab networking:** `NetworkObject` + `NetworkTransform`
+  (server-authoritative default — the host owns enemies) + `NetworkAnimator` on
+  the same GameObject as the `Animator`. When adding `NetworkAnimator` from code
+  on a prefab-contents root, **wire its animator via the serialized field**
+  (`SerializedObject.FindProperty("m_Animator")`), not just the public property.
+- **NGO auto-registers new `NetworkObject` prefabs.** Saving a prefab with a
+  fresh `NetworkObject` makes the prefab post-processor add it to
+  `DefaultNetworkPrefabs.asset` for you — verify before adding it again. To add
+  programmatically use `NetworkPrefabsList.Add(new NetworkPrefab{ Prefab = … })`
+  (the backing `List` field is inaccessible; `PrefabList` is read-only).
+- **Replicate animation triggers via `NetworkAnimator.SetTrigger`,** not
+  `Animator.SetTrigger`. Float/bool params auto-sync, but **triggers don't** —
+  the enemy punch/jump only animate on the host until routed through the
+  `NetworkAnimator`.
+- **Despawn, don't `Destroy`, a networked enemy** — and only on the server.
+  The AI's death handler calls `NetworkObject.Despawn()` (safe because the AI is
+  host-only). Calling `Destroy` on a spawned `NetworkObject` from a client is an
+  error.
+- **Server-authoritative melee WITHOUT rewriting the controller.**
+  `PaladinController` stays a `MonoBehaviour`; a sibling **`PlayerMelee`
+  `NetworkBehaviour`** exposes `RequestHit(...)` → `ServerRpc` → the host runs the
+  `OverlapBox` and applies damage. Because only the **owner's** controller is
+  enabled, exactly one request fires per swing from the right client; on the host
+  the RPC short-circuits to a direct call. Co-op has no anti-cheat need, so we
+  **trust the client's reported swing box** and just **skip Paladins in the
+  overlap** so friendly-fire/self-hits can't happen.
+- **Gate every host actor that targets players on "GO", not just input.**
+  Enemies must not spawn or act during the countdown (players are input-locked),
+  so `EnemySpawner` checks `MatchController.HasStarted`. General rule: anything
+  host-authoritative that attacks/chases a player waits for match start.
+- **Replace single-player `FindAnyObjectByType<Player>()` with a registry.** It
+  assumed exactly one player; co-op has up to two spawned at runtime.
+  `PlayerRegistry` (populated by `NetworkPlayerSetup` on spawn/despawn) lets
+  enemies target the **nearest *living*** player and ignore downed teammates.
+- **Runtime-spawned players break serialized HUD references.** `HealthBarUI`'s
+  `target` was a scene reference to the old in-scene Paladin (now null). The
+  local player's `NetworkPlayerSetup` rebinds it via `HealthBarUI.SetTarget` on
+  spawn (owner only).
+- **Individual death ≠ match end (co-op).** A single Paladin going down must NOT
+  pop the game-over screen — that was single-player behaviour. Game-over moved
+  out of `PaladinController.OnPlayerDied` (it just downs the player now);
+  both-down → match end is Milestone 5.
+- **Deferred from M4 (documented, not silently dropped):** obstacle layout is
+  still per-client and un-seeded — grass-block X positions are deterministic so
+  the divergence is minor (only rock-vs-platform choice differs, so a hopper can
+  land slightly off on a client); rocks/droppables aren't networked yet (they
+  break host-only); no teammate health bar. Fold these into M5/M6.
+
+---
+
 ## UGS / cloud
 
 - **Windows `EPERM: operation not permitted, rename` in `Library/PackageCache`** on

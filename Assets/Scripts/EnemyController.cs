@@ -1,3 +1,5 @@
+using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 
 namespace DgProto
@@ -32,17 +34,15 @@ namespace DgProto
         [Tooltip("Damage each punch deals to the player.")]
         [SerializeField] private int attackDamage = 2;
 
-        [Header("Target")]
-        [Tooltip("Leave blank to auto-find the PaladinController in the scene.")]
-        [SerializeField] private Transform player;
-
         // Animator parameter hashes.
         static readonly int HashSpeed  = Animator.StringToHash("Speed");
         static readonly int HashAttack = Animator.StringToHash("Attack");
 
         Animator _animator;
+        NetworkAnimator _netAnimator;   // replicates the punch trigger to clients
         Health   _ownHealth;
-        Health   _playerHealth;
+        Health   _playerHealth;         // nearest living player's Health (host-side)
+        Transform _target;              // that player's transform
         float _patrolMinX, _patrolMaxX;
         int   _patrolDir = -1;          // start heading left (toward the Paladin)
         float _lastAttackTime = -999f;
@@ -60,6 +60,7 @@ namespace DgProto
         private void Awake()
         {
             _animator = GetComponentInChildren<Animator>();
+            _netAnimator = GetComponent<NetworkAnimator>();
             float spawnX = transform.position.x;
             _patrolMinX = spawnX - patrolRange;
             _patrolMaxX = spawnX + patrolRange;
@@ -67,19 +68,9 @@ namespace DgProto
             // (the spawner faces new enemies toward the Paladin).
             _facingRight = transform.forward.x >= 0f;
 
-            // Destroy the enemy when its Health hits zero.
+            // Despawn the enemy when its Health hits zero.
             _ownHealth = GetComponent<Health>();
             if (_ownHealth != null) _ownHealth.Died += OnDied;
-        }
-
-        private void Start()
-        {
-            if (player == null)
-            {
-                var pc = Object.FindAnyObjectByType<PaladinController>();
-                if (pc != null) player = pc.transform;
-            }
-            if (player != null) _playerHealth = player.GetComponent<Health>();
         }
 
         private void OnDestroy()
@@ -89,7 +80,11 @@ namespace DgProto
 
         private void OnDied(Health h)
         {
-            Destroy(gameObject);
+            // This behaviour only ever runs on the host, so despawn (which also
+            // destroys) the networked enemy across all clients.
+            var netObj = GetComponent<NetworkObject>();
+            if (netObj != null && netObj.IsSpawned) netObj.Despawn();
+            else Destroy(gameObject);
         }
 
         private void Update()
@@ -101,8 +96,13 @@ namespace DgProto
                 return;
             }
 
-            float dist = player != null
-                ? Mathf.Abs(player.position.x - transform.position.x)
+            // Re-acquire the nearest living player every frame (co-op: up to two;
+            // downed players are skipped).
+            _playerHealth = PlayerRegistry.GetNearestLiving(transform.position);
+            _target = _playerHealth != null ? _playerHealth.transform : null;
+
+            float dist = _target != null
+                ? Mathf.Abs(_target.position.x - transform.position.x)
                 : Mathf.Infinity;
 
             if (dist <= attackRange)         AttackState();
@@ -123,7 +123,7 @@ namespace DgProto
 
         private void ChaseState()
         {
-            int dir = player.position.x > transform.position.x ? 1 : -1;
+            int dir = _target.position.x > transform.position.x ? 1 : -1;
             MoveX(dir, chaseSpeed);
             FaceDir(dir > 0);
             SetAnimSpeed(1f);
@@ -133,14 +133,23 @@ namespace DgProto
         {
             // Hold position, face the player, punch on cooldown.
             SetAnimSpeed(0f);
-            FaceDir(player.position.x > transform.position.x);
+            FaceDir(_target.position.x > transform.position.x);
 
             if (Time.time >= _lastAttackTime + attackCooldown)
             {
                 _lastAttackTime = Time.time;
-                if (_animator != null) _animator.SetTrigger(HashAttack);
+                TriggerAttack();
+                // Runs on the host; player Health is server-authoritative.
                 if (_playerHealth != null) _playerHealth.TakeDamage(attackDamage);
             }
+        }
+
+        // Fire the punch through the NetworkAnimator so the swing replicates to
+        // clients (the host owns the enemy and drives its animator).
+        private void TriggerAttack()
+        {
+            if (_netAnimator != null) _netAnimator.SetTrigger("Attack");
+            else if (_animator != null) _animator.SetTrigger(HashAttack);
         }
 
         private void MoveX(int dir, float speed)

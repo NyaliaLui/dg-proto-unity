@@ -35,6 +35,13 @@ namespace DgProto
         private Text _label;
         private Canvas _canvas;
 
+        /// <summary>
+        /// True once the countdown has reached "GO" on this instance. On the
+        /// server this gates host-authoritative systems (e.g. enemy spawning) so
+        /// nothing acts against the players before the match actually starts.
+        /// </summary>
+        public bool HasStarted => _started;
+
         /// <summary>Server-only: begin the countdown from now + countdownSeconds.</summary>
         public void BeginCountdown()
         {

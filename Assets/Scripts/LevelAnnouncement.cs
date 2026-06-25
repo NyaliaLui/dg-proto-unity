@@ -55,7 +55,7 @@ namespace DgProto
         private void Start()
         {
             _tracker = ScoreTracker.Instance;
-            _tracker.Changed += OnScoreChanged;
+            if (_tracker != null) _tracker.Changed += OnScoreChanged;
 
             // Wake the AudioManager early so the GameStart SFX overlapping with
             // the very first announcement isn't dropped.
@@ -63,7 +63,7 @@ namespace DgProto
             audio.Play(SfxId.GameStart);
 
             // Announce the starting level.
-            Show(_tracker.Level);
+            Show(_tracker != null ? _tracker.Level : 1);
         }
 
         private void OnDestroy()

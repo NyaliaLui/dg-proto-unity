@@ -1,3 +1,5 @@
+using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 
 namespace DgProto
@@ -29,6 +31,7 @@ namespace DgProto
         private enum State { Seek, MoveToTarget, JumpUp, Attack, JumpDown }
 
         private Animator  _animator;
+        private NetworkAnimator _netAnimator;
         private Health    _ownHealth;
         private Health    _playerHealth;
         private Transform _player;
@@ -53,19 +56,10 @@ namespace DgProto
         private void Awake()
         {
             _animator = GetComponentInChildren<Animator>();
+            _netAnimator = GetComponent<NetworkAnimator>();
             _ownHealth = GetComponent<Health>();
             if (_ownHealth != null) _ownHealth.Died += OnDied;
             _facingRight = transform.forward.x >= 0f;
-        }
-
-        private void Start()
-        {
-            var pc = Object.FindAnyObjectByType<PaladinController>();
-            if (pc != null)
-            {
-                _player = pc.transform;
-                _playerHealth = pc.GetComponent<Health>();
-            }
         }
 
         private void OnDestroy()
@@ -73,11 +67,21 @@ namespace DgProto
             if (_ownHealth != null) _ownHealth.Died -= OnDied;
         }
 
-        private void OnDied(Health h) => Destroy(gameObject);
+        private void OnDied(Health h)
+        {
+            // Host-only behaviour: despawn the networked enemy for all clients.
+            var netObj = GetComponent<NetworkObject>();
+            if (netObj != null && netObj.IsSpawned) netObj.Despawn();
+            else Destroy(gameObject);
+        }
 
         private void Update()
         {
             if (IsStunned) { SetMoveAnim(0f); return; }
+
+            // Track the nearest living player (used when attacking from a perch).
+            _playerHealth = PlayerRegistry.GetNearestLiving(transform.position);
+            _player = _playerHealth != null ? _playerHealth.transform : null;
 
             switch (_state)
             {
@@ -107,7 +111,7 @@ namespace DgProto
                 _jumpFrom = transform.position;
                 _jumpTo   = new Vector3(_target.position.x, TargetTopY(_target), transform.position.z);
                 _jumpStartTime = Time.time;
-                if (_animator != null) _animator.SetTrigger("Jump");
+                TriggerJump();
                 SetMoveAnim(0f);
                 _state = State.JumpUp;
                 return;
@@ -153,7 +157,7 @@ namespace DgProto
             if (Time.time < _nextAttackTime) return;
 
             // Fire one punch.
-            if (_animator != null) _animator.SetTrigger("Attack");
+            TriggerAttack();
             if (_player != null && _playerHealth != null)
             {
                 bool inReach = Mathf.Abs(_player.position.x - transform.position.x) <= attackReach
@@ -169,7 +173,7 @@ namespace DgProto
                 _jumpFrom = transform.position;
                 _jumpTo   = new Vector3(transform.position.x, 0f, transform.position.z);
                 _jumpStartTime = Time.time;
-                if (_animator != null) _animator.SetTrigger("Jump");
+                TriggerJump();
                 _state = State.JumpDown;
             }
         }
@@ -207,6 +211,20 @@ namespace DgProto
         private void SetMoveAnim(float speed)
         {
             if (_animator != null) _animator.SetFloat("Speed", speed);
+        }
+
+        // Triggers go through the NetworkAnimator so the hop/punch replicate to
+        // clients (the host owns the enemy and drives its animator).
+        private void TriggerJump()
+        {
+            if (_netAnimator != null) _netAnimator.SetTrigger("Jump");
+            else if (_animator != null) _animator.SetTrigger("Jump");
+        }
+
+        private void TriggerAttack()
+        {
+            if (_netAnimator != null) _netAnimator.SetTrigger("Attack");
+            else if (_animator != null) _animator.SetTrigger("Attack");
         }
 
         private void FaceDir(bool faceRight)

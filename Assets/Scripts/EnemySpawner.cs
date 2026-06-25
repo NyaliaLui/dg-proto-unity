@@ -1,12 +1,17 @@
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace DgProto
 {
     /// <summary>
-    /// Periodically spawns enemies around the Paladin, up to a maximum alive at
-    /// once. Each spawned enemy is given one of the three behavior scripts
-    /// (patrol, chaser, platform-hopper) chosen at random.
+    /// Host-authoritative enemy spawner. Only the server spawns and simulates
+    /// enemies; each spawned enemy is a NetworkObject that replicates to clients
+    /// via its NetworkTransform / NetworkAnimator. The behaviour scripts (patrol,
+    /// chaser, platform-hopper) are added on the host only, so the AI runs in one
+    /// place and its results are mirrored to everyone.
+    ///
+    /// Spawns near a randomly-chosen living player, up to a maximum alive at once.
     /// </summary>
     public class EnemySpawner : MonoBehaviour
     {
@@ -14,7 +19,7 @@ namespace DgProto
         private const float FacingRightYaw = 90f;
         private const float FacingLeftYaw = -90f;
 
-        [Tooltip("Behavior-less Enemy prefab (model + Health + collider + Animator).")]
+        [Tooltip("Behavior-less Enemy prefab (NetworkObject + model + Health + collider + Animator).")]
         [SerializeField] private GameObject enemyPrefab;
 
         [Tooltip("Seconds between spawn attempts.")]
@@ -29,25 +34,30 @@ namespace DgProto
         [SerializeField] private float groundMinX = -135f;
         [SerializeField] private float groundMaxX = 145f;
 
-        [Tooltip("Left blank → auto-finds the PaladinController in the scene.")]
-        [SerializeField] private Transform player;
-
         private float _nextSpawnTime;
         private readonly List<GameObject> _spawned = new List<GameObject>();
+        private MatchController _match;
+
+        private static bool IsServer =>
+            NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer;
 
         private void Start()
         {
-            if (player == null)
-            {
-                var pc = Object.FindAnyObjectByType<PaladinController>();
-                if (pc != null) player = pc.transform;
-            }
             _nextSpawnTime = Time.time + spawnInterval;
+            _match = Object.FindAnyObjectByType<MatchController>();
         }
 
         private void Update()
         {
-            // Drop references to enemies that have died.
+            // Enemies are host-authoritative — clients receive replicated objects.
+            if (!IsServer) return;
+
+            // Don't spawn (or let enemies act) before the synchronized countdown
+            // reaches "GO" — otherwise enemies would attack players who can't yet
+            // move. MatchController owns that gate.
+            if (_match != null && !_match.HasStarted) return;
+
+            // Drop references to enemies that have despawned/died.
             _spawned.RemoveAll(e => e == null);
 
             if (Time.time < _nextSpawnTime) return;
@@ -59,26 +69,34 @@ namespace DgProto
 
         private void SpawnOne()
         {
-            if (enemyPrefab == null || player == null) return;
+            if (enemyPrefab == null) return;
 
+            // Spawn relative to a random living player; if everyone's down, hold.
+            var reference = PickReferencePlayer();
+            if (reference == null) return;
+
+            float px = reference.transform.position.x;
             float side = Random.value < 0.5f ? -1f : 1f;
             float dist = Random.Range(minSpawnDistance, maxSpawnDistance);
-            float x = Mathf.Clamp(player.position.x + side * dist, groundMinX, groundMaxX);
+            float x = Mathf.Clamp(px + side * dist, groundMinX, groundMaxX);
 
-            bool rightOfPlayer = x > player.position.x;
+            bool rightOfPlayer = x > px;
             var rot = Quaternion.Euler(0f, rightOfPlayer ? FacingLeftYaw : FacingRightYaw, 0f);
 
-            var enemy = Instantiate(enemyPrefab, new Vector3(x, 0f, 0f), rot, transform);
+            var enemy = Instantiate(enemyPrefab, new Vector3(x, 0f, 0f), rot);
             enemy.name = "Enemy";
 
-            // Award one score point when this enemy dies.
-            var health = enemy.GetComponent<Health>();
-            if (health != null)
-            {
-                health.Died += OnEnemyDied;
-            }
+            // Server-spawn so the enemy replicates to every client.
+            var netObj = enemy.GetComponent<NetworkObject>();
+            netObj.Spawn();
 
-            // Randomly assign one of the three behaviors.
+            // Award one shared score point when this enemy dies (host-side).
+            var health = enemy.GetComponent<Health>();
+            if (health != null) health.Died += OnEnemyDied;
+
+            // Behaviours run on the host only (added after the spawn). Movement and
+            // animation reach clients through the enemy's NetworkTransform /
+            // NetworkAnimator.
             switch (Random.Range(0, 3))
             {
                 case 0:  enemy.AddComponent<EnemyController>();      break; // patrol
@@ -89,10 +107,27 @@ namespace DgProto
             _spawned.Add(enemy);
         }
 
+        // Reservoir-samples one living player so spawns aren't biased toward the
+        // first-registered player.
+        private static Health PickReferencePlayer()
+        {
+            var players = PlayerRegistry.All;
+            Health pick = null;
+            int liveCount = 0;
+            for (int i = 0; i < players.Count; i++)
+            {
+                var p = players[i];
+                if (p == null || p.IsDead) continue;
+                liveCount++;
+                if (Random.Range(0, liveCount) == 0) pick = p;
+            }
+            return pick;
+        }
+
         private void OnEnemyDied(Health h)
         {
             h.Died -= OnEnemyDied;
-            ScoreTracker.Instance.AddEnemyKillPoint();
+            if (ScoreTracker.Instance != null) ScoreTracker.Instance.AddEnemyKillPoint();
         }
     }
 }
