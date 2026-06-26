@@ -25,6 +25,15 @@ namespace DgProto
         [SerializeField] private PaladinController controller;
         [SerializeField] private Rigidbody body;
 
+        // Stable per-player tints, indexed by OwnerClientId, applied on every
+        // client so the two Paladins are always distinguishable. Index 0 (host)
+        // keeps its original look; index 1 (joiner) is tinted blue.
+        private static readonly Color[] PlayerTints =
+        {
+            Color.white,
+            new Color(0.45f, 0.65f, 1f),
+        };
+
         private Health _health;
 
         private void Awake()
@@ -41,6 +50,10 @@ namespace DgProto
             // Register with the player registry so host-driven enemy AI can target
             // this Paladin (nearest living player).
             PlayerRegistry.Register(_health);
+
+            // Stable color tint by owner, so both players can tell the Paladins
+            // apart on every client.
+            ApplyPlayerTint(OwnerClientId);
 
             // Controllers spawn DISABLED for everyone. The remote proxy stays
             // disabled (it's driven by the replicated transform); the local
@@ -62,17 +75,37 @@ namespace DgProto
             {
                 var cam = Object.FindAnyObjectByType<SidescrollerCameraFollow>();
                 if (cam != null) cam.SetTarget(transform);
-
-                // Point the HUD health bar at MY Paladin (the bar shows the local
-                // player's health; a teammate bar is a later-milestone polish item).
-                var bar = Object.FindAnyObjectByType<HealthBarUI>();
-                if (bar != null && _health != null) bar.SetTarget(_health);
             }
+
+            // Bind HUD bars: the local player drives the main bar, the other
+            // player drives the teammate bar (on every client).
+            BindHealthBar(isLocalPlayer);
         }
 
         public override void OnNetworkDespawn()
         {
             PlayerRegistry.Unregister(_health);
+        }
+
+        private void ApplyPlayerTint(ulong ownerId)
+        {
+            var tint = PlayerTints[(int)(ownerId % (ulong)PlayerTints.Length)];
+            foreach (var smr in GetComponentsInChildren<SkinnedMeshRenderer>())
+            {
+                var mats = smr.materials; // instance copies — won't touch shared assets
+                for (int i = 0; i < mats.Length; i++)
+                    if (mats[i] != null && mats[i].HasProperty("_Color")) mats[i].color = tint;
+            }
+        }
+
+        // Owner → the main (non-teammate) bar; non-owner → the teammate bar.
+        private void BindHealthBar(bool isLocalPlayer)
+        {
+            if (_health == null) return;
+            foreach (var bar in Object.FindObjectsByType<HealthBarUI>(FindObjectsSortMode.None))
+            {
+                if (bar.IsTeammateBar == !isLocalPlayer) bar.SetTarget(_health);
+            }
         }
     }
 }

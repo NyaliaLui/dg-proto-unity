@@ -1,46 +1,41 @@
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace DgProto
 {
     /// <summary>
-    /// Spawns a random Obstacle from <see cref="obstaclePrefabs"/> on every
-    /// Nth ground GrassBlock (sorted by world X). The instantiated obstacle
-    /// keeps its prefab's Y/Z; only X is overridden to land on the block.
-    ///
-    /// Re-rolls on Awake so every playthrough is different. A
-    /// [ContextMenu] Respawn entry lets you re-roll in the Editor too.
+    /// Host-authoritative obstacle layout. The server picks a layout and
+    /// network-spawns a random Obstacle on every Nth ground GrassBlock (sorted by
+    /// X), so every client sees an identical world AND rock breaks / droppables
+    /// replicate. Driven once by <see cref="MatchSpawner"/> after the gameplay
+    /// scene's networked load completes (so all clients are present).
     /// </summary>
     public class ObstacleSpawner : MonoBehaviour
     {
-        [Tooltip("Pool of obstacle prefabs. Pick uniformly at random for each spawn slot.")]
+        [Tooltip("Pool of obstacle prefabs (each a NetworkObject). Picked uniformly per slot.")]
         [SerializeField] private GameObject[] obstaclePrefabs;
 
         [Tooltip("Spawn an obstacle on every Nth ground GrassBlock (sorted by X).")]
         [SerializeField] private int spawnEveryNth = 5;
 
-        [Tooltip("Non-zero = deterministic seed. 0 = fresh randomness each call.")]
+        [Tooltip("Non-zero = deterministic seed. 0 = the host picks a fresh seed each match.")]
         [SerializeField] private int randomSeed = 0;
 
-        [Tooltip("Re-spawn obstacles automatically on Awake (i.e. each time Play starts).")]
-        [SerializeField] private bool spawnOnAwake = true;
+        private bool _built;
 
-        private void Awake()
+        /// <summary>Server-only: build and network-spawn the obstacle layout once.</summary>
+        public void BuildLayout()
         {
-            if (spawnOnAwake) Respawn();
-        }
-
-        [ContextMenu("Respawn")]
-        public void Respawn()
-        {
+            if (_built) return;
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) return;
             if (obstaclePrefabs == null || obstaclePrefabs.Length == 0)
             {
                 Debug.LogWarning("[ObstacleSpawner] No prefabs assigned — nothing to spawn.");
                 return;
             }
-
-            ClearChildren();
+            _built = true;
 
             // Collect ground blocks (skip the vertical stacks at the ends).
             var blocks = new List<GameObject>();
@@ -52,31 +47,22 @@ namespace DgProto
             }
             blocks.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
 
-            var rng = randomSeed != 0 ? new System.Random(randomSeed) : new System.Random();
+            int seed = randomSeed != 0 ? randomSeed : Random.Range(1, int.MaxValue);
+            var rng = new System.Random(seed);
 
             for (int i = spawnEveryNth - 1; i < blocks.Count; i += spawnEveryNth)
             {
-                var block  = blocks[i];
                 var prefab = obstaclePrefabs[rng.Next(obstaclePrefabs.Length)];
                 if (prefab == null) continue;
 
                 var spawnPos = new Vector3(
-                    block.transform.position.x,
+                    blocks[i].transform.position.x,
                     prefab.transform.position.y, // prefab embeds its intended height
                     prefab.transform.position.z);
 
-                var instance = Instantiate(prefab, spawnPos, prefab.transform.rotation, transform);
+                var instance = Instantiate(prefab, spawnPos, prefab.transform.rotation);
                 instance.name = prefab.name;
-            }
-        }
-
-        private void ClearChildren()
-        {
-            for (int i = transform.childCount - 1; i >= 0; i--)
-            {
-                var c = transform.GetChild(i).gameObject;
-                if (Application.isPlaying) Destroy(c);
-                else                       DestroyImmediate(c);
+                instance.GetComponent<NetworkObject>().Spawn(); // replicates to clients
             }
         }
     }

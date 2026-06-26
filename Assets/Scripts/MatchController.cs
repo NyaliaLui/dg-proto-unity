@@ -39,8 +39,17 @@ namespace DgProto
         [Tooltip("Social link shown on the match-end screen.")]
         [SerializeField] private string facebookUrl = "https://www.facebook.com/profile.php?id=61572357196698";
 
+        [Tooltip("Seconds the host waits for a disconnected teammate before ending the match.")]
+        [SerializeField] private float disconnectGraceSeconds = 10f;
+
+        private const string SupportLine =
+            "Show support for work like this by following the comic book on social media.";
+
         private bool _started;
         private bool _gameOverShown;
+        private bool _waitingForReconnect;   // host: a teammate dropped mid-match
+        private double _graceDeadline;       // ServerTime at which the grace window ends
+        private bool _connectionLost;        // pure client: lost the host
         private Text _label;
         private Canvas _canvas;
 
@@ -61,7 +70,8 @@ namespace DgProto
         public override void OnNetworkSpawn()
         {
             _matchOver.OnValueChanged += OnMatchOverChanged;
-            if (_matchOver.Value) ShowGameOver(); // covers a late spawn into an ended match
+            if (NetworkManager != null) NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
+            if (_matchOver.Value) ShowGameOver(BothDownMessage()); // late spawn into an ended match
         }
 
         private void Update()
@@ -74,10 +84,47 @@ namespace DgProto
                 return;
             }
 
-            // Match running: the host watches for "both Paladins down" → match end.
-            if (IsServer && !_matchOver.Value && AllPlayersDown())
+            if (IsServer)
             {
-                _matchOver.Value = true;
+                // Both Paladins down → match end.
+                if (!_matchOver.Value && AllPlayersDown())
+                {
+                    _matchOver.Value = true;
+                }
+                // A teammate dropped and didn't return within the grace window → end.
+                else if (_waitingForReconnect && !_gameOverShown &&
+                         NetworkManager.ServerTime.Time >= _graceDeadline)
+                {
+                    _waitingForReconnect = false;
+                    int finalScore = ScoreTracker.Instance != null ? ScoreTracker.Instance.Score : 0;
+                    ShowGameOver("Your teammate disconnected. Final score: " + finalScore + ". " + SupportLine);
+                }
+            }
+        }
+
+        // ----- disconnect handling -----------------------------------------
+
+        private void OnClientDisconnected(ulong clientId)
+        {
+            if (_matchOver.Value || _gameOverShown) return; // normal end / intentional leave
+
+            if (IsServer)
+            {
+                // A remote client dropped (the host's own id never arrives here as
+                // a remote disconnect). Only react during a live match.
+                if (clientId == NetworkManager.LocalClientId || !_started) return;
+                if (!_waitingForReconnect)
+                {
+                    _waitingForReconnect = true;
+                    _graceDeadline = NetworkManager.ServerTime.Time + disconnectGraceSeconds;
+                    ShowMessage("Teammate disconnected — waiting…");
+                }
+            }
+            else if (!_connectionLost)
+            {
+                // Pure client lost the host → the session is gone. End immediately.
+                _connectionLost = true;
+                ShowGameOver("Connection to the host was lost. " + SupportLine);
             }
         }
 
@@ -118,23 +165,23 @@ namespace DgProto
 
         private void OnMatchOverChanged(bool previous, bool current)
         {
-            if (current) ShowGameOver();
+            if (current) ShowGameOver(BothDownMessage());
         }
 
-        private void ShowGameOver()
+        private string BothDownMessage()
+        {
+            int finalScore = ScoreTracker.Instance != null ? ScoreTracker.Instance.Score : 0;
+            return "Both Paladins have fallen! Final score: " + finalScore + ". " + SupportLine;
+        }
+
+        private void ShowGameOver(string message)
         {
             if (_gameOverShown) return;
             _gameOverShown = true;
+            HideCanvas(); // clear any "waiting…" overlay underneath
 
-            int finalScore = ScoreTracker.Instance != null ? ScoreTracker.Instance.Score : 0;
             AudioManager.Instance.Play(SfxId.GameOver);
-            GameOverScreen.Show(
-                "Both Paladins have fallen! Final score: " + finalScore +
-                ". Show support for work like this by following the comic book on social media.",
-                "Facebook",
-                facebookUrl,
-                "Return to Menu",
-                ReturnToMenu);
+            GameOverScreen.Show(message, "Facebook", facebookUrl, "Return to Menu", ReturnToMenu);
         }
 
         // Restart for co-op: tear down the network session and go back to the menu
@@ -160,8 +207,21 @@ namespace DgProto
         private void ShowLabel(string text)
         {
             if (_canvas == null) BuildUI();
-            if (_label != null && _label.text != text) _label.text = text;
+            if (_label != null) { _label.fontSize = 200; if (_label.text != text) _label.text = text; }
             if (_canvas != null && !_canvas.gameObject.activeSelf) _canvas.gameObject.SetActive(true);
+        }
+
+        // Smaller centered message (e.g. the disconnect "waiting…" overlay).
+        private void ShowMessage(string text)
+        {
+            if (_canvas == null) BuildUI();
+            if (_label != null) { _label.fontSize = 60; _label.text = text; }
+            if (_canvas != null && !_canvas.gameObject.activeSelf) _canvas.gameObject.SetActive(true);
+        }
+
+        private void HideCanvas()
+        {
+            if (_canvas != null) _canvas.gameObject.SetActive(false);
         }
 
         private IEnumerator HideAfter(float seconds)
@@ -204,6 +264,7 @@ namespace DgProto
         public override void OnNetworkDespawn()
         {
             _matchOver.OnValueChanged -= OnMatchOverChanged;
+            if (NetworkManager != null) NetworkManager.OnClientDisconnectCallback -= OnClientDisconnected;
             if (_canvas != null) Destroy(_canvas.gameObject);
         }
     }

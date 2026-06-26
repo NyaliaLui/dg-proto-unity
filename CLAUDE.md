@@ -98,9 +98,11 @@ via `NetworkVariable`; networked `Enemy.prefab` + host-only `EnemySpawner`/AI; s
 melee via `PlayerMelee` ServerRpc; nearest-living-player targeting via `PlayerRegistry`;
 enemies gated on `MatchController.HasStarted`) · **M5** match end (host detects both
 Paladins down → replicated `_matchOver` → game-over screen on both clients with the shared
-score; Restart shuts the network down and returns to MainMenu). Next: **M6** disconnect
-grace + polish (and the deferred M4 items: obstacle seed, rock/droppable networking,
-teammate health bar).
+score; Restart shuts the network down and returns to MainMenu) · **M6** disconnect handling
++ polish (host grace-window → end on a teammate drop, client connection-lost → menu;
+stable per-player tint by `OwnerClientId`; teammate health bar; host-spawned **networked**
+obstacles/rocks + networked `Droppable` reward with pickup popup via targeted ClientRpc).
+The conversion to 2-player online co-op is **feature-complete** through M6.
 Before doing further multiplayer work — or repeating the conversion elsewhere — read
 [`Docs/unity-multiplayer-conversion-gotchas.md`](Docs/unity-multiplayer-conversion-gotchas.md)
 for the hard-won gotchas. **Two inputs are human-only — prompt the user (don't assume):**

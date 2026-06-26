@@ -180,20 +180,18 @@ namespace DgProto
 
         /// <summary>
         /// Nearest obstacle (rock/platform) other than the one just visited.
-        /// Obstacles are the children of the scene's "Obstacles" container.
+        /// Obstacles are host-spawned NetworkObjects tagged with <see cref="Obstacle"/>;
+        /// this AI only runs on the host, so a scene query is fine.
         /// </summary>
         private Transform FindNearestTarget()
         {
-            var root = GameObject.Find("Obstacles");
-            if (root == null) return _lastTarget;
-
             Transform best = null;
             float bestDist = float.MaxValue;
-            foreach (Transform child in root.transform)
+            foreach (var obs in Object.FindObjectsByType<Obstacle>(FindObjectsSortMode.None))
             {
-                if (child == _lastTarget) continue;
-                float d = Mathf.Abs(child.position.x - transform.position.x);
-                if (d < bestDist) { bestDist = d; best = child; }
+                if (obs.transform == _lastTarget) continue;
+                float d = Mathf.Abs(obs.transform.position.x - transform.position.x);
+                if (d < bestDist) { bestDist = d; best = obs.transform; }
             }
             // If the last target was the only option, allow revisiting it.
             return best != null ? best : _lastTarget;

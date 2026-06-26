@@ -70,6 +70,11 @@ namespace DgProto
                 i++;
             }
 
+            // Build the host-authoritative obstacle layout now that all clients
+            // are present (network-spawns replicate to everyone).
+            var obstacles = Object.FindAnyObjectByType<ObstacleSpawner>();
+            if (obstacles != null) obstacles.BuildLayout();
+
             // Players are in (controllers disabled). Kick off the synchronized
             // pre-match countdown, which unlocks input on "GO".
             var match = Object.FindAnyObjectByType<MatchController>();

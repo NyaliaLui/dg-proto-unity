@@ -31,6 +31,29 @@ rather than guessing or barrelling ahead:
    *owner-authoritative* over their own movement and skips prediction/rollback
    entirely — a huge scope cut a PvP duel wouldn't allow.
 
+### Decisions locked for this project (Paladin co-op)
+
+These are the answers the user gave for the questions above — recorded so a
+future session doesn't re-ask, and as a worked example of how the answers shape
+the build:
+
+| Question | Answer for this project |
+|---|---|
+| **Mode** | Co-op — each player owns a Paladin; team vs the AI XBot waves (no PvP). |
+| **Authority / topology** | Client-host via UGS Relay; host is authoritative for the shared world; each player is owner-authoritative over its own movement. |
+| **Matchmaking** | UGS Lobby quick-join-or-create (the queue = waiting in an open lobby). |
+| **Match-end rule** | Endless survival; the match ends only when **both** Paladins are down. Shared team score. |
+| **Downed-player handling** | Stays down, **no revive**; the teammate plays on until they also fall. |
+| **Disconnect handling** | **Grace window → end match.** On a mid-match disconnect the host shows "waiting for teammate…" and starts a ~10 s grace timer; if the player doesn't return, the match ends for the remaining player. **No session resume / reconnect** — that was explicitly out of scope (NGO has no first-class reconnect and it's fragile over Relay). A pure client that loses the host goes straight to a "connection lost" screen → menu. |
+| **Identity / auth** | Anonymous UGS authentication (no account login). |
+| **M6 polish scope** | All four: stable per-player tint, teammate health bar, host-seeded obstacle layout, networked rock/droppable. |
+
+**For Claude:** the disconnect question has three realistic settings — *grace →
+end* (chosen here; simplest, reliably testable), *grace + best-effort reconnect*
+(much harder, fragile over Relay), or *skip*. Confirm which the user wants before
+building; a reconnect-resume expectation changes the architecture (session
+persistence, state resync) far more than the grace timer itself.
+
 ---
 
 ## Milestone 1 — Netcode for GameObjects foundation
@@ -252,6 +275,52 @@ rather than guessing or barrelling ahead:
   let the socket free between runs, or `SetConnectionData(addr, <fresh port>,
   addr)` at runtime for the test (reverts on play-mode stop, so the serialized
   7777 is untouched).
+
+---
+
+## Milestone 6 — disconnect handling + polish
+
+- **Two disconnect directions, handled differently.** Subscribe to
+  `NetworkManager.OnClientDisconnectCallback` in `OnNetworkSpawn` (it fires on
+  both roles). On the **host** it reports a *remote* client leaving → show a
+  "waiting for teammate" overlay and start a grace timer; if they don't return,
+  end the match. On a **pure client** it reports losing the *host* → the session
+  is gone, so go straight to a "connection lost" screen → menu. Guard the handler
+  with the normal-end flag so the intentional Shutdown of a both-down restart
+  doesn't trip it.
+- **A ClientRpc + Despawn on the same object in the same frame can drop the
+  RPC.** A networked pickup that does `ShowRewardClientRpc(); Despawn();` loses
+  the popup — most reliably for the **host-as-picker** (its own loopback RPC
+  races the destroy), but also possible for a remote picker. Fixes used:
+  (1) when the picker IS the host (`OwnerClientId == LocalClientId`), call the
+  reward method **locally** instead of via RPC; (2) **defer the despawn one frame**
+  (hide the renderer/collider immediately for instant feedback, despawn next
+  frame) so the RPC flushes first. This race is the single most likely reason a
+  "pickup works but no popup" bug appears.
+- **Host-spawned obstacles replace per-client local spawning.** Making the
+  obstacles `NetworkObject`s the host spawns (seeded layout) gives identical
+  layout for free (replication) AND lets rock breaks / droppables replicate.
+  Spawn them from `MatchSpawner.OnLoadEventCompleted` (server, all clients
+  present) — same safe timing as player spawning — not from a scene `Awake`.
+- **Delete stale edit-time spawns before networking a spawner.** The old
+  `ObstacleSpawner` had baked 5 obstacle instances into the scene via a
+  `[ContextMenu]`. Once the prefabs gain a `NetworkObject`, those scene instances
+  become unspawned/duplicate NetworkObjects — clear them from the scene so the
+  host's runtime spawn is the only source.
+- **Don't rely on a parent container for runtime-spawned NetworkObjects.** The
+  platform-hopper used to find obstacles via `GameObject.Find("Obstacles")`
+  children, but host-spawned NetworkObjects aren't reparented on clients. Switch
+  to a marker component (`Obstacle`) + `FindObjectsByType` (the AI is host-only,
+  so the query is fine).
+- **Runtime-built mesh/material must become saved assets to live on a prefab.**
+  The droppable's procedural prism mesh + tan material were moved into
+  `Assets/Meshes/TriangularPrism.asset` + `Assets/Materials/Droppable.mat` so the
+  networked `Droppable.prefab` can reference them (per the magenta-material rule
+  in CLAUDE.md).
+- **Stable per-player tint by `OwnerClientId`** (applied on every client via
+  instance materials) distinguishes the two Paladins; a teammate health bar that
+  hides (CanvasGroup alpha 0) until a non-local player binds it covers the co-op
+  HUD. Bind both bars from `NetworkPlayerSetup` by an `IsTeammateBar` flag.
 
 ---
 
