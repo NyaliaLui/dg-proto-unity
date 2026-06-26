@@ -31,7 +31,16 @@ namespace DgProto
         private readonly NetworkVariable<double> _matchStartTime =
             new NetworkVariable<double>(0d, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        // Flips true (server-write) once both Paladins are down. Replicated so
+        // every client shows the game-over screen at the same moment.
+        private readonly NetworkVariable<bool> _matchOver =
+            new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        [Tooltip("Social link shown on the match-end screen.")]
+        [SerializeField] private string facebookUrl = "https://www.facebook.com/profile.php?id=61572357196698";
+
         private bool _started;
+        private bool _gameOverShown;
         private Text _label;
         private Canvas _canvas;
 
@@ -49,10 +58,31 @@ namespace DgProto
             _matchStartTime.Value = NetworkManager.ServerTime.Time + countdownSeconds;
         }
 
+        public override void OnNetworkSpawn()
+        {
+            _matchOver.OnValueChanged += OnMatchOverChanged;
+            if (_matchOver.Value) ShowGameOver(); // covers a late spawn into an ended match
+        }
+
         private void Update()
         {
-            if (!IsSpawned || _started) return;
+            if (!IsSpawned) return;
 
+            if (!_started)
+            {
+                TickCountdown();
+                return;
+            }
+
+            // Match running: the host watches for "both Paladins down" → match end.
+            if (IsServer && !_matchOver.Value && AllPlayersDown())
+            {
+                _matchOver.Value = true;
+            }
+        }
+
+        private void TickCountdown()
+        {
             double start = _matchStartTime.Value;
             if (start <= 0d) return; // countdown not begun yet
 
@@ -68,6 +98,52 @@ namespace DgProto
                 EnableLocalPlayer();
                 StartCoroutine(HideAfter(0.6f));
             }
+        }
+
+        // ----- match end (both players down) -------------------------------
+
+        // True only when there is at least one registered player and every one of
+        // them is down. A single death leaves the teammate playing on.
+        private static bool AllPlayersDown()
+        {
+            var players = PlayerRegistry.All;
+            if (players.Count == 0) return false;
+            for (int i = 0; i < players.Count; i++)
+            {
+                var p = players[i];
+                if (p != null && !p.IsDead) return false;
+            }
+            return true;
+        }
+
+        private void OnMatchOverChanged(bool previous, bool current)
+        {
+            if (current) ShowGameOver();
+        }
+
+        private void ShowGameOver()
+        {
+            if (_gameOverShown) return;
+            _gameOverShown = true;
+
+            int finalScore = ScoreTracker.Instance != null ? ScoreTracker.Instance.Score : 0;
+            AudioManager.Instance.Play(SfxId.GameOver);
+            GameOverScreen.Show(
+                "Both Paladins have fallen! Final score: " + finalScore +
+                ". Show support for work like this by following the comic book on social media.",
+                "Facebook",
+                facebookUrl,
+                "Return to Menu",
+                ReturnToMenu);
+        }
+
+        // Restart for co-op: tear down the network session and go back to the menu
+        // (NOT a local scene reload — the gameplay scene has no NetworkManager).
+        private void ReturnToMenu()
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm != null && (nm.IsListening || nm.IsClient)) nm.Shutdown();
+            UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
         }
 
         // Enable only THIS client's own player; remote proxies stay disabled.
@@ -127,6 +203,7 @@ namespace DgProto
 
         public override void OnNetworkDespawn()
         {
+            _matchOver.OnValueChanged -= OnMatchOverChanged;
             if (_canvas != null) Destroy(_canvas.gameObject);
         }
     }

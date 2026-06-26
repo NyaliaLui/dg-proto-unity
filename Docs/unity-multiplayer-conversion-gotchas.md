@@ -210,6 +210,51 @@ rather than guessing or barrelling ahead:
 
 ---
 
+## Milestone 5 — match end (both down) + restart-to-menu
+
+- **"Match over" = ALL players down, decided on the host and replicated.** The
+  host polls `PlayerRegistry` (`AllPlayersDown` — at least one registered player
+  and every one of them `IsDead`) and flips a server-write
+  `NetworkVariable<bool>`; its `OnValueChanged` shows the game-over screen on
+  **every** client at the same moment. A single death just downs that player
+  (see M4) — the teammate plays on.
+- **Don't despawn a downed player.** They stay spawned (and registered) with
+  `IsDead == true` so `AllPlayersDown` can still see them. Despawning would empty
+  the registry and the rule couldn't distinguish "down" from "left the match".
+- **Co-op restart is NOT a scene reload.** The gameplay scene has no
+  `NetworkManager` (it lives in the menu), so the old
+  `SceneManager.LoadScene(activeScene)` restart would reload a scene with no
+  networking. Instead **`NetworkManager.Shutdown()` then load `MainMenu`**.
+  `GameOverScreen.Show` grew an optional `onRestart` action so the match supplies
+  this behaviour while single-player keeps the plain reload.
+- **Reloading the menu scene reintroduces a `NetworkManager` — but it's safe.**
+  NGO moves the bootstrap `NetworkManager` to the `DontDestroyOnLoad` scene at
+  startup, so it survives `Shutdown()`. Loading `MainMenu` (which still contains a
+  `NetworkManager` on disk) spawns a second one, but NGO's singleton guard
+  destroys the duplicate GameObject — **verified**: after Return-to-Menu exactly
+  one `NetworkManager`/`MatchmakingController`/`UgsMatchmaker`/`MatchSpawner`
+  remains, the menu rewires to it, and clicking **Find Match** again starts a
+  fresh search/host with **zero console errors**. No extra teardown needed.
+- **Editor convenience for MPPM testing:** pressing Play runs the *open* scene,
+  not build-index 0 — so editing `SampleScene` and hitting Play drops you into a
+  menu-less, NetworkManager-less gameplay scene. Set
+  `EditorSceneManager.playModeStartScene = <MainMenu>` (a per-developer editor
+  setting, not committed) so Play always boots the menu.
+- **Final score on the end screen reads the replicated `ScoreTracker`** — no need
+  to ship it through the match-over event; it's already a `NetworkVariable`.
+- **Editor gotcha that masquerades as a gameplay bug:** rapid play/stop cycles
+  leave UnityTransport's UDP socket **bound on port 7777**, so the next
+  `StartHost` fails with *"Failed to bind UDP socket … address already in use"*
+  and NGO immediately shuts the host down. The visible symptom is downstream and
+  misleading — `NetworkVariable`s read their **default** (e.g. player `HP == 0`,
+  `IsServer == false`), which looks like a broken `Health` init. **Check
+  `StartHost`'s return value and the console for the bind error first.** Fixes:
+  let the socket free between runs, or `SetConnectionData(addr, <fresh port>,
+  addr)` at runtime for the test (reverts on play-mode stop, so the serialized
+  7777 is untouched).
+
+---
+
 ## UGS / cloud
 
 - **Windows `EPERM: operation not permitted, rename` in `Library/PackageCache`** on

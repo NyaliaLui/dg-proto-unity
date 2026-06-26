@@ -96,8 +96,11 @@ Lobby/Relay matchmaking + networked load · **M3** synchronized 3-2-1 countdown 
 start · **M4** host-authoritative world (server-authoritative `Health` & `ScoreTracker`
 via `NetworkVariable`; networked `Enemy.prefab` + host-only `EnemySpawner`/AI; server-side
 melee via `PlayerMelee` ServerRpc; nearest-living-player targeting via `PlayerRegistry`;
-enemies gated on `MatchController.HasStarted`). Next: **M5** match end (both Paladins down)
-+ restart · **M6** disconnect grace + polish.
+enemies gated on `MatchController.HasStarted`) · **M5** match end (host detects both
+Paladins down → replicated `_matchOver` → game-over screen on both clients with the shared
+score; Restart shuts the network down and returns to MainMenu). Next: **M6** disconnect
+grace + polish (and the deferred M4 items: obstacle seed, rock/droppable networking,
+teammate health bar).
 Before doing further multiplayer work — or repeating the conversion elsewhere — read
 [`Docs/unity-multiplayer-conversion-gotchas.md`](Docs/unity-multiplayer-conversion-gotchas.md)
 for the hard-won gotchas. **Two inputs are human-only — prompt the user (don't assume):**
