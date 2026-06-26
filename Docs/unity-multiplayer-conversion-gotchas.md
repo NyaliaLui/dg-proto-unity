@@ -324,7 +324,65 @@ persistence, state resync) far more than the grace timer itself.
 
 ---
 
-## UGS / cloud
+## Migrating to the Multiplayer Services package (Sessions API)
+
+Unity 6 steers you to the **Multiplayer Services** package
+(`com.unity.services.multiplayer`) and its **Sessions API** instead of calling
+the standalone Lobby + Relay SDKs directly. This project migrated to it; the
+`## UGS / cloud` notes below now describe the **legacy** direct-SDK approach
+(kept for reference).
+
+- **The package BUNDLES its own Lobby + Relay — it conflicts with the standalone
+  packages.** `com.unity.services.multiplayer` ships its own
+  `Unity.Services.Lobbies` / `Unity.Services.Relay` namespaces (see its
+  `Runtime/Lobbies/`, `Runtime/Relay/` source). Having the standalone
+  `com.unity.services.lobby` + `com.unity.services.relay` installed **at the same
+  time** yields duplicate types — `CS0433: type 'Lobby' exists in both
+  Unity.Services.Lobbies and Unity.Services.Multiplayer` — plus an editor popup:
+  *"Multiplayer Services … is incompatible with the Unity Multiplayer Service
+  SDK. Please remove …"*. The migration fix is the **opposite** of what that
+  popup suggests: keep Multiplayer Services and **remove the two standalone
+  packages**. (It does NOT depend on them — confirmed in its `package.json`.)
+- **Adding the package can freeze the editor behind a modal.** The post-install
+  "incompatible" dialog blocks the main thread, so MCP `refresh`/`read_console`
+  time out (looks like a hang). It's an informational **OK** — a human must
+  dismiss it; the agent can't. If a compile error triggers an **Enter Safe Mode?**
+  prompt, choose **Ignore** to keep the console readable.
+- **Open quick-join-or-create in one call, dashboard-free:**
+  `MultiplayerService.Instance.MatchmakeSessionAsync(new QuickJoinOptions { CreateSession = true, Timeout = … }, new SessionOptions { MaxPlayers = 2, IsPrivate = false }.WithRelayNetwork())`
+  finds+joins any open session, else creates one (host) after the timeout — no
+  UGS Matchmaker dashboard setup. (The *other* `MatchmakeSessionAsync` overload,
+  taking `MatchmakerOptions`, IS the dashboard Matchmaker. Don't confuse them.)
+  Only the would-be host waits ~Timeout before hosting; joiners find an open
+  session immediately.
+- **`WithRelayNetwork()` makes the session START NGO for you** (host for the
+  creator, client for the joiner) and configure the Relay transport — **do NOT
+  call `StartHost`/`StartClient`** (the single biggest behavioral difference from
+  the old flow). `NetworkConfig.PlayerPrefab` stays null → no auto-spawn. The
+  scene-load trigger (`MatchmakingController`, keyed on NGO's connected-client
+  count) is unchanged, so it works regardless. **Verified**: create-session →
+  `IsHost==true` with no manual start.
+- **`ISession.LeaveAsync()` auto-cleans the lobby + Relay allocation** — no manual
+  `DeleteLobbyAsync` and **no heartbeat coroutine** (the session heartbeats
+  itself). **Verified**: after Cancel, active session count returns to 0.
+- **Read the package's shipped source to confirm the API**, more reliably than
+  reflection: `Library/PackageCache/com.unity.services.multiplayer@<hash>/Runtime/...`
+  has `MultiplayerService.cs` (the `IMultiplayerService` surface),
+  `SessionOptionsExtensions.cs` (`WithRelayNetwork`/`WithDirectNetwork`),
+  `Session/Options/SessionOptions.cs`, `Matchmaking/QuickJoinOptions.cs`, and the
+  `ISession` interface in `Session/SessionHandler.cs`. (Right after the install,
+  `execute_code`'s CodeDom compiler can transiently fail to find a transitive
+  plugin DLL — e.g. `com.unity.services.wire/.../websocket-sharp.dll` — so reading
+  source beats in-editor reflection until the domain reload settles.)
+- **The `IMatchmaker` seam made the swap one component.** `SessionMatchmaker`
+  drops in for the retired `UgsMatchmaker`; `MatchmakingController.GetComponent<IMatchmaker>()`
+  picks it up. Delete the old script, add the new component to the bootstrap, and
+  clear the resulting missing-script with
+  `GameObjectUtility.RemoveMonoBehavioursWithMissingScript`.
+
+---
+
+## UGS / cloud (legacy direct Lobby/Relay SDK — superseded by the Sessions API above)
 
 - **Windows `EPERM: operation not permitted, rename` in `Library/PackageCache`** on
   a package install is a **transient file lock** (antivirus or the search indexer
@@ -359,8 +417,11 @@ persistence, state resync) far more than the grace timer itself.
 ## Versions captured (this project)
 
 Unity **6000.4.6f1** · NGO **2.13.0** · transport **2.6.0** · Multiplayer Play
-Mode **2.0.2** · services.core **1.18.0** · authentication **3.7.1** · lobby
-**1.3.0** · relay **1.2.0**.
+Mode **2.0.2** · services.core **1.18.0** · authentication **3.7.1**.
+Matchmaking now uses **Multiplayer Services `com.unity.services.multiplayer`
+2.2.4** (Sessions API). The standalone **lobby 1.3.0** and **relay 1.2.0**
+packages were **removed** during the migration (the Multiplayer Services package
+bundles its own Lobby/Relay and conflicts with them).
 
 ## Cross-reference
 

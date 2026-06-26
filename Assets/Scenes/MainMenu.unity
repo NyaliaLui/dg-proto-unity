@@ -568,9 +568,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 862214810}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4cb5038ae3f624841a804677f46f114e, type: 3}
+  m_Script: {fileID: 11500000, guid: ac0666574f26ba040803d6b4727f3c38, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DgProto.UgsMatchmaker
+  m_EditorClassIdentifier: Assembly-CSharp::DgProto.SessionMatchmaker
+  searchTimeoutSeconds: 3
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

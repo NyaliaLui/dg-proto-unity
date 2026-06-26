@@ -103,6 +103,13 @@ score; Restart shuts the network down and returns to MainMenu) · **M6** disconn
 stable per-player tint by `OwnerClientId`; teammate health bar; host-spawned **networked**
 obstacles/rocks + networked `Droppable` reward with pickup popup via targeted ClientRpc).
 The conversion to 2-player online co-op is **feature-complete** through M6.
+Matchmaking was then migrated off the standalone Lobby/Relay SDKs to the Unity 6
+**Multiplayer Services** package (`com.unity.services.multiplayer` 2.2.4, Sessions API):
+`SessionMatchmaker` (replacing the retired `UgsMatchmaker`) uses
+`MatchmakeSessionAsync` quick-join-or-create + `SessionOptions.WithRelayNetwork()`, which
+starts NGO itself (no manual `StartHost`/heartbeat). The standalone `com.unity.services.lobby`
+and `com.unity.services.relay` packages were **removed** (the bundle supersedes and conflicts
+with them).
 Before doing further multiplayer work — or repeating the conversion elsewhere — read
 [`Docs/unity-multiplayer-conversion-gotchas.md`](Docs/unity-multiplayer-conversion-gotchas.md)
 for the hard-won gotchas. **Two inputs are human-only — prompt the user (don't assume):**
