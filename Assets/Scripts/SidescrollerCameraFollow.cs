@@ -27,6 +27,25 @@ namespace DgProto
 
         private Vector3 _velocity;
 
+        /// <summary>
+        /// Retarget the camera at runtime. In multiplayer each client calls this
+        /// with its own locally-owned player so the camera follows "me", not the
+        /// remote proxy. Snaps instantly to avoid a long pan from the origin.
+        /// </summary>
+        public void SetTarget(Transform newTarget)
+        {
+            target = newTarget;
+            if (target != null)
+            {
+                Vector3 snap = transform.position;
+                if (followX) snap.x = target.position.x + offset.x;
+                if (followY) snap.y = target.position.y + offset.y;
+                snap.z = target.position.z + offset.z;
+                transform.position = snap;
+                _velocity = Vector3.zero;
+            }
+        }
+
         private void LateUpdate()
         {
             if (target == null) return;

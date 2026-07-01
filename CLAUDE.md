@@ -87,6 +87,36 @@ sidescroller built in Unity. This file is auto-loaded each session — read it f
 - Architectural DRY: a shared `EnemyBase` (FaceDir / stun / death / animator helpers for
   the 3 enemy scripts + Paladin) and a shared procedural-UI builder for
   `NotificationWindow` + `GameOverScreen` (currently near-duplicate).
+
+## Multiplayer (networking) work
+
+Converting this single-player game to 2-player online co-op (NGO + UGS Lobby/Relay).
+Progress: **M1** Netcode foundation + networked Paladin · **M2** Find Match menu + UGS
+Lobby/Relay matchmaking + networked load · **M3** synchronized 3-2-1 countdown + gated
+start · **M4** host-authoritative world (server-authoritative `Health` & `ScoreTracker`
+via `NetworkVariable`; networked `Enemy.prefab` + host-only `EnemySpawner`/AI; server-side
+melee via `PlayerMelee` ServerRpc; nearest-living-player targeting via `PlayerRegistry`;
+enemies gated on `MatchController.HasStarted`) · **M5** match end (host detects both
+Paladins down → replicated `_matchOver` → game-over screen on both clients with the shared
+score; Restart shuts the network down and returns to MainMenu) · **M6** disconnect handling
++ polish (host grace-window → end on a teammate drop, client connection-lost → menu;
+stable per-player tint by `OwnerClientId`; teammate health bar; host-spawned **networked**
+obstacles/rocks + networked `Droppable` reward with pickup popup via targeted ClientRpc).
+The conversion to 2-player online co-op is **feature-complete** through M6.
+Matchmaking was then migrated off the standalone Lobby/Relay SDKs to the Unity 6
+**Multiplayer Services** package (`com.unity.services.multiplayer` 2.2.4, Sessions API):
+`SessionMatchmaker` (replacing the retired `UgsMatchmaker`) uses
+`MatchmakeSessionAsync` quick-join-or-create + `SessionOptions.WithRelayNetwork()`, which
+starts NGO itself (no manual `StartHost`/heartbeat). The standalone `com.unity.services.lobby`
+and `com.unity.services.relay` packages were **removed** (the bundle supersedes and conflicts
+with them).
+Before doing further multiplayer work — or repeating the conversion elsewhere — read
+[`Docs/unity-multiplayer-conversion-gotchas.md`](Docs/unity-multiplayer-conversion-gotchas.md)
+for the hard-won gotchas. **Two inputs are human-only — prompt the user (don't assume):**
+(1) the **UGS cloud project link** (sign-in + create/link project + enable Relay/Lobby/Auth;
+the agent can't), and (2) the **match design decisions** (mode / authority / match-end /
+disconnect) that drive the architecture.
+
 ## Blender / Mixamo animation work
 
 When merging Mixamo animations onto a character in Blender (via the Blender MCP

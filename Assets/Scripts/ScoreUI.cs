@@ -37,6 +37,7 @@ namespace DgProto
         private void Start()
         {
             _tracker = ScoreTracker.Instance;
+            if (_tracker == null) return; // no ScoreTracker in this scene
             _tracker.Changed += OnChanged;
             Refresh();
         }

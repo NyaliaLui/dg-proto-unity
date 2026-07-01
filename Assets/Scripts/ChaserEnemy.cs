@@ -1,10 +1,12 @@
+using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 
 namespace DgProto
 {
     /// <summary>
-    /// Enemy behavior #2 — pure chaser. Always walks straight toward the
-    /// Paladin and attacks once it is within range. No patrol phase.
+    /// Enemy behavior #2 — pure chaser. Always walks straight toward the nearest
+    /// living Paladin and attacks once it is within range. No patrol phase.
     /// </summary>
     public class ChaserEnemy : MonoBehaviour, IStunnable
     {
@@ -19,6 +21,7 @@ namespace DgProto
         [SerializeField] private int attackDamage = 2;
 
         private Animator  _animator;
+        private NetworkAnimator _netAnimator;
         private Health    _ownHealth;
         private Health    _playerHealth;
         private Transform _player;
@@ -36,19 +39,10 @@ namespace DgProto
         private void Awake()
         {
             _animator = GetComponentInChildren<Animator>();
+            _netAnimator = GetComponent<NetworkAnimator>();
             _ownHealth = GetComponent<Health>();
             if (_ownHealth != null) _ownHealth.Died += OnDied;
             _facingRight = transform.forward.x >= 0f;
-        }
-
-        private void Start()
-        {
-            var pc = Object.FindAnyObjectByType<PaladinController>();
-            if (pc != null)
-            {
-                _player = pc.transform;
-                _playerHealth = pc.GetComponent<Health>();
-            }
         }
 
         private void OnDestroy()
@@ -56,11 +50,21 @@ namespace DgProto
             if (_ownHealth != null) _ownHealth.Died -= OnDied;
         }
 
-        private void OnDied(Health h) => Destroy(gameObject);
+        private void OnDied(Health h)
+        {
+            // Host-only behaviour: despawn the networked enemy for all clients.
+            var netObj = GetComponent<NetworkObject>();
+            if (netObj != null && netObj.IsSpawned) netObj.Despawn();
+            else Destroy(gameObject);
+        }
 
         private void Update()
         {
             if (IsStunned) { SetMoveAnim(0f); return; }
+
+            // Nearest living player (co-op: up to two; downed players skipped).
+            _playerHealth = PlayerRegistry.GetNearestLiving(transform.position);
+            _player = _playerHealth != null ? _playerHealth.transform : null;
             if (_player == null) { SetMoveAnim(0f); return; }
 
             float dx = _player.position.x - transform.position.x;
@@ -72,7 +76,7 @@ namespace DgProto
                 if (Time.time >= _lastAttackTime + attackCooldown)
                 {
                     _lastAttackTime = Time.time;
-                    if (_animator != null) _animator.SetTrigger("Attack");
+                    TriggerAttack();
                     if (_playerHealth != null) _playerHealth.TakeDamage(attackDamage);
                 }
             }
@@ -84,6 +88,12 @@ namespace DgProto
                 FaceDir(dir > 0);
                 SetMoveAnim(1f);
             }
+        }
+
+        private void TriggerAttack()
+        {
+            if (_netAnimator != null) _netAnimator.SetTrigger("Attack");
+            else if (_animator != null) _animator.SetTrigger("Attack");
         }
 
         private void SetMoveAnim(float speed)

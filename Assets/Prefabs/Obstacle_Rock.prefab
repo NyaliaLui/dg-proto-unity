@@ -13,6 +13,8 @@ GameObject:
   - component: {fileID: 1074524864230592254}
   - component: {fileID: 1311380456722580285}
   - component: {fileID: 1526658417677080091}
+  - component: {fileID: 5985766582903268190}
+  - component: {fileID: 2270449097943562579}
   m_Layer: 0
   m_Name: Obstacle_Rock
   m_TagString: Untagged
@@ -125,5 +127,44 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 99ba7b0891df7294cae67995e82bbaec, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DgProto.Rock
+  ShowTopMostFoldoutHeaderGroup: 1
   hp: 6
-  droppableColor: {r: 0.82, g: 0.71, b: 0.55, a: 1}
+  droppablePrefab: {fileID: 2939352153077023987, guid: 40b102df5450b6949b175a2b540d0434, type: 3}
+--- !u!114 &5985766582903268190
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6567455730616311628}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
+  GlobalObjectIdHash: 0
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  <InScenePlaced>k__BackingField: 0
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
+--- !u!114 &2270449097943562579
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6567455730616311628}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5e9006aa9aaeb6418793cb080f954a7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DgProto.Obstacle

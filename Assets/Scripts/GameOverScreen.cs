@@ -16,12 +16,19 @@ namespace DgProto
         private const float BorderThickness = 3f;
 
         private string _linkUrl;
+        private System.Action _onRestart;
 
-        /// <summary>Spawn the game-over screen.</summary>
-        public static GameOverScreen Show(string message, string linkLabel, string linkUrl, string restartLabel)
+        /// <summary>
+        /// Spawn the game-over screen. If <paramref name="onRestart"/> is supplied
+        /// the Restart button runs it (e.g. the co-op match shuts the network down
+        /// and returns to the menu); otherwise it reloads the active scene.
+        /// </summary>
+        public static GameOverScreen Show(string message, string linkLabel, string linkUrl, string restartLabel,
+            System.Action onRestart = null)
         {
             var go = new GameObject("GameOverScreen");
             var screen = go.AddComponent<GameOverScreen>();
+            screen._onRestart = onRestart;
             screen.Build(message, linkLabel, linkUrl, restartLabel);
             return screen;
         }
@@ -97,7 +104,8 @@ namespace DgProto
         {
             // Restore time before reloading — LoadScene does not reset it.
             Time.timeScale = 1f;
-            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            if (_onRestart != null) _onRestart();
+            else SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
 
         // ----- helpers -----------------------------------------------------

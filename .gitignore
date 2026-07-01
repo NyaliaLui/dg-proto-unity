@@ -113,3 +113,8 @@ InitTestScene*.unity*
 /[Aa]ssets/[Ss]creenshots.meta
 /[Aa]ssets/_[Rr]ecovery/
 /[Aa]ssets/_[Rr]ecovery.meta
+
+# Multiplayer Play Mode — per-developer virtual-player scratch state
+/[Aa]ssets/UserChoices.choices
+/[Aa]ssets/UserChoices.choices.meta
+/ProjectSettings/VirtualProjectsConfig.json
